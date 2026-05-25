@@ -81,9 +81,12 @@
 .gs-field textarea{resize:vertical;min-height:96px;font-family:inherit}
 .gs-field input:focus,.gs-field textarea:focus,.gs-field select:focus{border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsla(25,90%,50%,.18)}
 .gs-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
-.gs-stars{display:inline-flex;gap:.2rem;direction:rtl}
-.gs-stars button{background:transparent;border:none;font-size:1.6rem;line-height:1;color:hsl(var(--border));cursor:pointer;padding:.15rem;transition:color .15s,transform .15s}
-.gs-stars button:hover,.gs-stars button:hover ~ button,.gs-stars button.gs-on,.gs-stars button.gs-on ~ button{color:hsl(var(--primary))}
+.gs-stars{display:flex;gap:.25rem;align-self:flex-start;padding:.15rem 0}
+.gs-stars button{background:transparent;border:none;font-size:1.7rem;line-height:1;color:hsl(var(--border));cursor:pointer;padding:.1rem;transition:color .12s,transform .12s}
+.gs-stars button.gs-on{color:hsl(var(--primary))}
+.gs-stars:hover button{color:hsl(var(--primary))}
+.gs-stars button:hover ~ button{color:hsl(var(--border))}
+.gs-stars button:hover{transform:scale(1.1)}
 .gs-consent{display:flex;align-items:flex-start;gap:.55rem;font-size:.82rem;color:hsl(var(--muted-foreground));line-height:1.45;margin:.25rem 0 1.25rem}
 .gs-consent input{margin-top:.2rem;accent-color:hsl(var(--primary))}
 .gs-submit{width:100%;justify-content:center;margin-top:.25rem}
@@ -274,11 +277,11 @@
           <div class="gs-field">
             <label>Rating</label>
             <div class="gs-stars" data-rating="5">
-              <button type="button" data-v="5" class="gs-on">★</button>
-              <button type="button" data-v="4" class="gs-on">★</button>
-              <button type="button" data-v="3" class="gs-on">★</button>
-              <button type="button" data-v="2" class="gs-on">★</button>
-              <button type="button" data-v="1" class="gs-on">★</button>
+              <button type="button" data-v="1" class="gs-on" aria-label="1 star">★</button>
+              <button type="button" data-v="2" class="gs-on" aria-label="2 stars">★</button>
+              <button type="button" data-v="3" class="gs-on" aria-label="3 stars">★</button>
+              <button type="button" data-v="4" class="gs-on" aria-label="4 stars">★</button>
+              <button type="button" data-v="5" class="gs-on" aria-label="5 stars">★</button>
             </div>
             <input type="hidden" name="rating" value="5">
           </div>
@@ -307,7 +310,7 @@
       if (e.key === 'Escape' && modalEl.classList.contains('gs-open')) closeModal();
     });
 
-    // Star rating — RTL trick: clicking a star fills it and all to the right
+    // Star rating: clicking star N fills 1..N
     const stars = modalEl.querySelector('.gs-stars');
     const ratingInput = modalEl.querySelector('input[name="rating"]');
     stars.addEventListener('click', (e) => {
@@ -317,7 +320,7 @@
       currentRating = v;
       ratingInput.value = String(v);
       stars.querySelectorAll('button').forEach(b => {
-        b.classList.toggle('gs-on', Number(b.dataset.v) >= v);
+        b.classList.toggle('gs-on', Number(b.dataset.v) <= v);
       });
     });
 
