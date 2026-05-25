@@ -288,7 +288,7 @@
 
           <div class="gs-field">
             <label for="gs-story">Your story</label>
-            <textarea id="gs-story" name="story" required minlength="20" maxlength="800" placeholder="What moment will you remember most?"></textarea>
+            <textarea id="gs-story" name="text" required minlength="20" maxlength="800" placeholder="What moment will you remember most?"></textarea>
           </div>
 
           <label class="gs-consent">
