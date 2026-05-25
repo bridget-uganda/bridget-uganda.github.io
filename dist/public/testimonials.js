@@ -11,7 +11,6 @@
  *     "name":      "Anna",
  *     "country":   "Germany",
  *     "flag":      "🇩🇪",            // optional emoji
- *     "photo":     "assets/...jpg",  // optional, relative to /
  *     "rating":    5,                // 1-5
  *     "tourType":  "Bwindi Gorilla Trek",
  *     "tourDate":  "Aug 2025",
@@ -46,7 +45,6 @@
 .gs-card:nth-child(3n+2){transform:rotate(1.4deg)}
 .gs-card:nth-child(3n+3){transform:rotate(-.4deg)}
 .gs-card:hover{transform:rotate(0) translateY(-6px);box-shadow:0 22px 40px -12px rgba(0,0,0,.22),0 6px 12px -4px rgba(0,0,0,.08)}
-.gs-photo{aspect-ratio:1/1;background:hsl(var(--muted));background-size:cover;background-position:center;margin-bottom:1rem;display:flex;align-items:center;justify-content:center;color:hsl(var(--muted-foreground));font-size:2.5rem}
 .gs-rating{color:hsl(var(--primary));letter-spacing:.15em;font-size:.95rem;margin-bottom:.4rem}
 .gs-quote{font-family:"Playfair Display",serif;font-style:italic;font-size:1.02rem;line-height:1.55;margin:0 0 1rem;color:hsl(var(--foreground))}
 .gs-meta{border-top:1px solid hsl(var(--border));padding-top:.75rem}
@@ -188,23 +186,18 @@
     const cards = list.map(t => {
       const rating = Math.max(0, Math.min(5, Number(t.rating) || 0));
       const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
-      const photoStyle = t.photo
-        ? `background-image:url('${esc(t.photo)}')`
-        : '';
-      const photoFallback = t.photo ? '' : (t.flag || '📷');
-      const tourLine = [t.tourType, t.tourDate].filter(Boolean).map(esc).join(' · ');
-      const nameLine = [t.name, t.flag ? esc(t.flag) : null, t.country ? esc(t.country) : null]
-        .filter(Boolean).join(' · ');
+      const flagCountry = [t.flag, t.country].filter(Boolean).join(' ');
+      const tourLine = [flagCountry, t.tourType, t.tourDate]
+        .filter(Boolean).map(esc).join(' · ');
       const verified = t.verified
         ? `<span class="gs-badge">Verified</span>` : '';
       return `
         <article class="gs-card">
-          <div class="gs-photo" style="${photoStyle}">${photoFallback}</div>
           <div class="gs-rating" aria-label="${rating} out of 5">${stars}</div>
           <p class="gs-quote">“${esc(t.text || '')}”</p>
           <div class="gs-meta">
             <div class="gs-name">${esc(t.name || 'Guest')}${verified}</div>
-            <div class="gs-tour">${nameLine ? esc(t.country || '') + (tourLine ? ' · ' : '') : ''}${tourLine}</div>
+            <div class="gs-tour">${tourLine}</div>
           </div>
         </article>
       `;
