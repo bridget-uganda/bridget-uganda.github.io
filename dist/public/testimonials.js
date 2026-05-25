@@ -1,0 +1,422 @@
+/*
+ * Guest Stories island for bridget-uganda.github.io
+ * Self-contained vanilla JS module that injects a "Guest Stories" section
+ * into the React-rendered SPA after the "My tour adventures" block.
+ *
+ * Data source : ./testimonials.json   (array of testimonial objects)
+ * Submit form : Formspree (same endpoint as the contact form)
+ *
+ * Testimonial schema (testimonials.json):
+ *   {
+ *     "name":      "Anna",
+ *     "country":   "Germany",
+ *     "flag":      "🇩🇪",            // optional emoji
+ *     "photo":     "assets/...jpg",  // optional, relative to /
+ *     "rating":    5,                // 1-5
+ *     "tourType":  "Bwindi Gorilla Trek",
+ *     "tourDate":  "Aug 2025",
+ *     "text":      "Bridget turned our safari into the most unforgettable trip of our lives.",
+ *     "verified":  true              // optional badge
+ *   }
+ */
+(function () {
+  'use strict';
+
+  // ============================================================
+  //  PASTE YOUR APPS SCRIPT WEB APP URL HERE (ends with /exec)
+  //  See apps-script/Code.gs for the one-time setup steps.
+  // ============================================================
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqlYPANgFiRBMQtYULkqNO_ZesqLUJOck8xTk6g7fwuh27_Fw3AA-KNdT51_IupaB8/exec';
+
+  const SECTION_ID = 'guest-stories';
+  const STYLE_ID   = 'guest-stories-styles';
+
+  // --------------------------------------------------------------------------
+  // Styles — scoped via .gs- prefix, reuses Tailwind CSS vars from the main bundle
+  // --------------------------------------------------------------------------
+  const CSS = `
+.gs-section{padding:5rem 1rem;background:hsl(var(--background));color:hsl(var(--foreground));font-family:Montserrat,sans-serif}
+.gs-container{max-width:1200px;margin:0 auto}
+.gs-head{text-align:center;margin-bottom:3rem}
+.gs-eyebrow{display:inline-block;font-size:.75rem;letter-spacing:.18em;text-transform:uppercase;color:hsl(var(--primary));font-weight:600;margin-bottom:.85rem}
+.gs-title{font-family:"Playfair Display",serif;font-size:clamp(1.85rem,4vw,2.6rem);line-height:1.15;margin:0 0 .85rem;font-weight:500;color:hsl(var(--foreground))}
+.gs-sub{font-size:1rem;line-height:1.55;color:hsl(var(--muted-foreground));max-width:620px;margin:0 auto}
+.gs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:2.5rem 2rem;margin-top:3rem}
+.gs-card{position:relative;background:hsl(var(--card));padding:.85rem .85rem 1.4rem;box-shadow:0 14px 30px -10px rgba(0,0,0,.18),0 4px 8px -4px rgba(0,0,0,.06);border-radius:4px;transform:rotate(-1.2deg);transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s}
+.gs-card:nth-child(3n+2){transform:rotate(1.4deg)}
+.gs-card:nth-child(3n+3){transform:rotate(-.4deg)}
+.gs-card:hover{transform:rotate(0) translateY(-6px);box-shadow:0 22px 40px -12px rgba(0,0,0,.22),0 6px 12px -4px rgba(0,0,0,.08)}
+.gs-photo{aspect-ratio:1/1;background:hsl(var(--muted));background-size:cover;background-position:center;margin-bottom:1rem;display:flex;align-items:center;justify-content:center;color:hsl(var(--muted-foreground));font-size:2.5rem}
+.gs-rating{color:hsl(var(--primary));letter-spacing:.15em;font-size:.95rem;margin-bottom:.4rem}
+.gs-quote{font-family:"Playfair Display",serif;font-style:italic;font-size:1.02rem;line-height:1.55;margin:0 0 1rem;color:hsl(var(--foreground))}
+.gs-meta{border-top:1px solid hsl(var(--border));padding-top:.75rem}
+.gs-name{font-weight:600;font-size:.95rem;color:hsl(var(--foreground))}
+.gs-tour{color:hsl(var(--muted-foreground));font-size:.8rem;margin-top:.15rem}
+.gs-badge{display:inline-block;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:hsl(var(--accent));background:hsl(var(--accent)/.08);padding:.15rem .45rem;border-radius:99px;margin-left:.4rem;vertical-align:middle;font-weight:600}
+.gs-empty{margin-top:1rem;text-align:center;padding:3rem 1.5rem;border:2px dashed hsl(var(--border));border-radius:18px;background:hsl(var(--card));max-width:560px;margin-left:auto;margin-right:auto}
+.gs-empty-icon{font-size:2.4rem;margin-bottom:1rem;opacity:.8}
+.gs-empty-title{font-family:"Playfair Display",serif;font-size:1.4rem;font-weight:500;margin:0 0 .5rem;color:hsl(var(--foreground))}
+.gs-empty-text{color:hsl(var(--muted-foreground));font-size:.95rem;line-height:1.55;margin:0 auto 1.5rem;max-width:420px}
+.gs-cta{text-align:center;margin-top:2.5rem}
+.gs-btn{display:inline-flex;align-items:center;gap:.5rem;background:hsl(var(--primary));color:hsl(var(--primary-foreground));border:none;padding:.9rem 1.85rem;font-family:inherit;font-weight:600;font-size:.95rem;border-radius:9999px;cursor:pointer;transition:background .2s,transform .2s,box-shadow .2s;box-shadow:0 4px 12px -4px hsla(25,90%,50%,.45)}
+.gs-btn:hover{background:hsl(25 90% 45%);transform:translateY(-1px);box-shadow:0 8px 18px -6px hsla(25,90%,50%,.55)}
+.gs-btn:active{transform:translateY(0)}
+@media (max-width:640px){
+ .gs-section{padding:3.5rem 1rem}
+ .gs-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;gap:1.25rem;padding:1rem 1rem 1.5rem;margin:2rem -1rem 0;scrollbar-width:none}
+ .gs-grid::-webkit-scrollbar{display:none}
+ .gs-card{flex:0 0 78%;scroll-snap-align:center}
+}
+.gs-backdrop{position:fixed;inset:0;background:rgba(20,12,5,.55);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem;opacity:0;pointer-events:none;transition:opacity .25s}
+.gs-backdrop.gs-open{opacity:1;pointer-events:auto}
+.gs-modal{background:hsl(var(--card));max-width:480px;width:100%;max-height:92vh;overflow-y:auto;border-radius:14px;padding:2rem 1.75rem;position:relative;transform:translateY(8px) scale(.98);transition:transform .25s cubic-bezier(.2,.8,.2,1);font-family:Montserrat,sans-serif;color:hsl(var(--foreground))}
+.gs-backdrop.gs-open .gs-modal{transform:translateY(0) scale(1)}
+.gs-close{position:absolute;top:.85rem;right:.85rem;width:32px;height:32px;border-radius:99px;background:transparent;border:none;font-size:1.4rem;line-height:1;cursor:pointer;color:hsl(var(--muted-foreground));display:flex;align-items:center;justify-content:center}
+.gs-close:hover{background:hsl(var(--muted));color:hsl(var(--foreground))}
+.gs-modal h3{font-family:"Playfair Display",serif;font-size:1.5rem;font-weight:500;margin:0 0 .35rem;color:hsl(var(--foreground))}
+.gs-modal p.gs-modal-sub{color:hsl(var(--muted-foreground));margin:0 0 1.5rem;font-size:.9rem;line-height:1.5}
+.gs-field{display:flex;flex-direction:column;gap:.35rem;margin-bottom:.95rem}
+.gs-field label{font-size:.78rem;font-weight:500;color:hsl(var(--muted-foreground));letter-spacing:.02em}
+.gs-field input,.gs-field textarea,.gs-field select{font-family:inherit;font-size:.95rem;padding:.65rem .8rem;border:1px solid hsl(var(--border));border-radius:8px;background:hsl(var(--background));color:hsl(var(--foreground));outline:none;transition:border-color .15s,box-shadow .15s;width:100%;box-sizing:border-box}
+.gs-field textarea{resize:vertical;min-height:96px;font-family:inherit}
+.gs-field input:focus,.gs-field textarea:focus,.gs-field select:focus{border-color:hsl(var(--primary));box-shadow:0 0 0 3px hsla(25,90%,50%,.18)}
+.gs-row{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.gs-stars{display:inline-flex;gap:.2rem;direction:rtl}
+.gs-stars button{background:transparent;border:none;font-size:1.6rem;line-height:1;color:hsl(var(--border));cursor:pointer;padding:.15rem;transition:color .15s,transform .15s}
+.gs-stars button:hover,.gs-stars button:hover ~ button,.gs-stars button.gs-on,.gs-stars button.gs-on ~ button{color:hsl(var(--primary))}
+.gs-consent{display:flex;align-items:flex-start;gap:.55rem;font-size:.82rem;color:hsl(var(--muted-foreground));line-height:1.45;margin:.25rem 0 1.25rem}
+.gs-consent input{margin-top:.2rem;accent-color:hsl(var(--primary))}
+.gs-submit{width:100%;justify-content:center;margin-top:.25rem}
+.gs-submit[disabled]{opacity:.7;cursor:wait}
+.gs-msg{margin:1rem 0 0;padding:.85rem 1rem;border-radius:8px;font-size:.9rem;line-height:1.45}
+.gs-msg.gs-ok{background:hsl(150 40% 94%);color:hsl(150 45% 22%);border:1px solid hsl(150 40% 80%)}
+.gs-msg.gs-err{background:hsl(0 55% 95%);color:hsl(0 55% 30%);border:1px solid hsl(0 55% 85%)}
+`;
+
+  // --------------------------------------------------------------------------
+  // Helpers
+  // --------------------------------------------------------------------------
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
+  ));
+
+  function injectStyles() {
+    if (document.getElementById(STYLE_ID)) return;
+    const s = document.createElement('style');
+    s.id = STYLE_ID;
+    s.textContent = CSS;
+    document.head.appendChild(s);
+  }
+
+  // Find the rendered "Meet your local guide" section. We insert OUR section
+  // directly before it, so the order becomes:
+  //   Tour adventures → Guest Stories → Meet your local guide
+  function findAnchor() {
+    const headings = document.querySelectorAll('h1, h2, h3');
+    for (const h of headings) {
+      const t = (h.textContent || '').trim();
+      if (/^Meet your local guide/i.test(t)) {
+        let el = h;
+        while (el && el.tagName !== 'SECTION' && el.parentElement) el = el.parentElement;
+        if (el && el.tagName === 'SECTION') return el;
+      }
+    }
+    // Fallback: insert after "My tour adventures" section if "Meet" isn't found
+    for (const h of headings) {
+      const t = (h.textContent || '').trim();
+      if (/^My tour adventures/i.test(t)) {
+        let el = h;
+        while (el && el.tagName !== 'SECTION' && el.parentElement) el = el.parentElement;
+        if (el && el.tagName === 'SECTION' && el.nextElementSibling) {
+          return el.nextElementSibling;
+        }
+      }
+    }
+    return null;
+  }
+
+  // --------------------------------------------------------------------------
+  // Section building
+  // --------------------------------------------------------------------------
+  function buildSection() {
+    const section = document.createElement('section');
+    section.id = SECTION_ID;
+    section.className = 'gs-section';
+    section.innerHTML = `
+      <div class="gs-container">
+        <header class="gs-head">
+          <span class="gs-eyebrow">Guest Stories</span>
+          <h2 class="gs-title">Voices from the trail</h2>
+          <p class="gs-sub">Real travellers, real moments — what guests remember most after their journey across Uganda, Rwanda, Kenya and Tanzania with Bridget.</p>
+        </header>
+        <div class="gs-body" data-state="loading"></div>
+        <div class="gs-cta">
+          <button type="button" class="gs-btn" data-action="open">
+            <span>✍</span><span>Share your experience</span>
+          </button>
+        </div>
+      </div>
+    `;
+    section.querySelector('[data-action="open"]').addEventListener('click', openModal);
+    return section;
+  }
+
+  function renderCards(list) {
+    const body = document.querySelector('#' + SECTION_ID + ' .gs-body');
+    if (!body) return;
+
+    if (!Array.isArray(list) || list.length === 0) {
+      body.dataset.state = 'empty';
+      body.innerHTML = `
+        <div class="gs-empty">
+          <div class="gs-empty-icon">✨</div>
+          <h3 class="gs-empty-title">Be the first to share your story</h3>
+          <p class="gs-empty-text">Travelled with Bridget? Tell other adventurers what made your trip across East Africa special.</p>
+          <button type="button" class="gs-btn" data-action="open">
+            <span>✍</span><span>Share your story</span>
+          </button>
+        </div>
+      `;
+      body.querySelector('[data-action="open"]').addEventListener('click', openModal);
+      return;
+    }
+
+    body.dataset.state = 'filled';
+    const cards = list.map(t => {
+      const rating = Math.max(0, Math.min(5, Number(t.rating) || 0));
+      const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
+      const photoStyle = t.photo
+        ? `background-image:url('${esc(t.photo)}')`
+        : '';
+      const photoFallback = t.photo ? '' : (t.flag || '📷');
+      const tourLine = [t.tourType, t.tourDate].filter(Boolean).map(esc).join(' · ');
+      const nameLine = [t.name, t.flag ? esc(t.flag) : null, t.country ? esc(t.country) : null]
+        .filter(Boolean).join(' · ');
+      const verified = t.verified
+        ? `<span class="gs-badge">Verified</span>` : '';
+      return `
+        <article class="gs-card">
+          <div class="gs-photo" style="${photoStyle}">${photoFallback}</div>
+          <div class="gs-rating" aria-label="${rating} out of 5">${stars}</div>
+          <p class="gs-quote">“${esc(t.text || '')}”</p>
+          <div class="gs-meta">
+            <div class="gs-name">${esc(t.name || 'Guest')}${verified}</div>
+            <div class="gs-tour">${nameLine ? esc(t.country || '') + (tourLine ? ' · ' : '') : ''}${tourLine}</div>
+          </div>
+        </article>
+      `;
+    }).join('');
+    body.innerHTML = `<div class="gs-grid">${cards}</div>`;
+  }
+
+  function loadAndRender() {
+    if (!APPS_SCRIPT_URL) { renderCards([]); return; }
+    fetch(APPS_SCRIPT_URL, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then(list => renderCards(Array.isArray(list) ? list : []))
+      .catch(() => renderCards([]));
+  }
+
+  // --------------------------------------------------------------------------
+  // Modal + form
+  // --------------------------------------------------------------------------
+  let modalEl = null;
+  let currentRating = 5;
+
+  function buildModal() {
+    if (modalEl) return modalEl;
+    modalEl = document.createElement('div');
+    modalEl.className = 'gs-backdrop';
+    modalEl.setAttribute('role', 'dialog');
+    modalEl.setAttribute('aria-modal', 'true');
+    modalEl.innerHTML = `
+      <div class="gs-modal" role="document">
+        <button type="button" class="gs-close" aria-label="Close" data-action="close">×</button>
+        <h3>Share your trip story</h3>
+        <p class="gs-modal-sub">Tell other travellers what your journey with Bridget was like. After a quick review, your story will appear on the site.</p>
+        <form class="gs-form" novalidate>
+          <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px">
+
+          <div class="gs-field">
+            <label for="gs-name">Your name</label>
+            <input id="gs-name" name="name" type="text" required maxlength="80" placeholder="Anna" />
+          </div>
+
+          <div class="gs-row">
+            <div class="gs-field">
+              <label for="gs-country">Country</label>
+              <input id="gs-country" name="country" type="text" maxlength="60" placeholder="Germany" />
+            </div>
+            <div class="gs-field">
+              <label for="gs-email">Email (not shown)</label>
+              <input id="gs-email" name="email" type="email" required maxlength="120" placeholder="you@example.com" />
+            </div>
+          </div>
+
+          <div class="gs-row">
+            <div class="gs-field">
+              <label for="gs-tour">Tour</label>
+              <select id="gs-tour" name="tour_type">
+                <option value="">— select —</option>
+                <option>Uganda Safari</option>
+                <option>Rwanda Culture & Gorillas</option>
+                <option>Kenya & Tanzania</option>
+                <option>Mixed East Africa</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="gs-field">
+              <label for="gs-date">When (month/year)</label>
+              <input id="gs-date" name="tour_date" type="text" maxlength="40" placeholder="Aug 2025" />
+            </div>
+          </div>
+
+          <div class="gs-field">
+            <label>Rating</label>
+            <div class="gs-stars" data-rating="5">
+              <button type="button" data-v="5" class="gs-on">★</button>
+              <button type="button" data-v="4" class="gs-on">★</button>
+              <button type="button" data-v="3" class="gs-on">★</button>
+              <button type="button" data-v="2" class="gs-on">★</button>
+              <button type="button" data-v="1" class="gs-on">★</button>
+            </div>
+            <input type="hidden" name="rating" value="5">
+          </div>
+
+          <div class="gs-field">
+            <label for="gs-story">Your story</label>
+            <textarea id="gs-story" name="story" required minlength="20" maxlength="800" placeholder="What moment will you remember most?"></textarea>
+          </div>
+
+          <label class="gs-consent">
+            <input type="checkbox" name="consent" required>
+            <span>I'm OK with Bridget publishing my first name, country and story on the site. Email stays private.</span>
+          </label>
+
+          <button type="submit" class="gs-btn gs-submit">Send story</button>
+          <div class="gs-msg" hidden></div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modalEl);
+
+    modalEl.addEventListener('click', (e) => {
+      if (e.target === modalEl || e.target.closest('[data-action="close"]')) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modalEl.classList.contains('gs-open')) closeModal();
+    });
+
+    // Star rating — RTL trick: clicking a star fills it and all to the right
+    const stars = modalEl.querySelector('.gs-stars');
+    const ratingInput = modalEl.querySelector('input[name="rating"]');
+    stars.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-v]');
+      if (!btn) return;
+      const v = Number(btn.dataset.v);
+      currentRating = v;
+      ratingInput.value = String(v);
+      stars.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('gs-on', Number(b.dataset.v) >= v);
+      });
+    });
+
+    modalEl.querySelector('.gs-form').addEventListener('submit', handleSubmit);
+    return modalEl;
+  }
+
+  function openModal() {
+    buildModal();
+    modalEl.classList.add('gs-open');
+    document.body.style.overflow = 'hidden';
+    setTimeout(() => {
+      const f = modalEl.querySelector('#gs-name');
+      if (f) f.focus();
+    }, 80);
+  }
+
+  function closeModal() {
+    if (!modalEl) return;
+    modalEl.classList.remove('gs-open');
+    document.body.style.overflow = '';
+  }
+
+  function showMsg(form, kind, text) {
+    const m = form.querySelector('.gs-msg');
+    m.hidden = false;
+    m.className = 'gs-msg gs-' + (kind === 'ok' ? 'ok' : 'err');
+    m.textContent = text;
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (form._gotcha && form._gotcha.value) return;     // honeypot
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    if (!APPS_SCRIPT_URL) {
+      showMsg(form, 'err', 'Submissions are not configured yet. Please email bridget directly.');
+      return;
+    }
+
+    const submit = form.querySelector('.gs-submit');
+    submit.disabled = true;
+    submit.textContent = 'Sending…';
+
+    const data = new FormData(form);
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: data    // no headers => simple request, no CORS preflight
+    })
+    .then(r => r.json().catch(() => ({ error: 'bad_response' })))
+    .then(res => {
+      if (res && res.error) {
+        showMsg(form, 'err', String(res.error));
+        submit.textContent = 'Send story';
+        submit.disabled = false;
+        return;
+      }
+      form.reset();
+      currentRating = 5;
+      showMsg(form, 'ok', 'Thank you! Your story is now live on the site.');
+      submit.textContent = 'Sent ✓';
+      loadAndRender();   // refresh the wall so the new card shows up
+      setTimeout(closeModal, 1800);
+    })
+    .catch(() => {
+      showMsg(form, 'err', "Sorry — couldn't send right now. Please try again in a minute.");
+      submit.textContent = 'Send story';
+      submit.disabled = false;
+    });
+  }
+
+  // --------------------------------------------------------------------------
+  // Boot — wait for React to render the anchor, then insert (idempotent)
+  // --------------------------------------------------------------------------
+  function tryInsert() {
+    if (document.getElementById(SECTION_ID)) return true;
+    const anchor = findAnchor();
+    if (!anchor || !anchor.parentNode) return false;
+    injectStyles();
+    const section = buildSection();
+    anchor.parentNode.insertBefore(section, anchor);
+    loadAndRender();
+    return true;
+  }
+
+  function boot() {
+    if (tryInsert()) return;
+    const obs = new MutationObserver(() => {
+      if (tryInsert()) obs.disconnect();
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+    // Safety net — stop observing after 30s no matter what
+    setTimeout(() => obs.disconnect(), 30000);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+})();
