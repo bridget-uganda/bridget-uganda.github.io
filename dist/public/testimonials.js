@@ -146,16 +146,13 @@
     section.innerHTML = `
       <div class="gs-container">
         <header class="gs-head">
-          <span class="gs-eyebrow">Guest Stories</span>
-          <h2 class="gs-title">Voices from the trail</h2>
-          <p class="gs-sub">Real travellers, real moments — what guests remember most after their journey across Uganda, Rwanda, Kenya and Tanzania with Bridget.</p>
+          <div class="gs-head-text">
+            <h2 class="gs-title">Customer Reviews for Bridget</h2>
+            <p class="gs-stats" hidden></p>
+          </div>
+          <button type="button" class="gs-btn" data-action="open">Write a review</button>
         </header>
         <div class="gs-body" data-state="loading"></div>
-        <div class="gs-cta">
-          <button type="button" class="gs-btn" data-action="open">
-            <span>✍</span><span>Share your experience</span>
-          </button>
-        </div>
       </div>
     `;
     section.querySelector('[data-action="open"]').addEventListener('click', openModal);
@@ -166,20 +163,30 @@
     const body = document.querySelector('#' + SECTION_ID + ' .gs-body');
     if (!body) return;
 
+    const stats = document.querySelector('#' + SECTION_ID + ' .gs-stats');
+
     if (!Array.isArray(list) || list.length === 0) {
+      if (stats) stats.hidden = true;
       body.dataset.state = 'empty';
       body.innerHTML = `
         <div class="gs-empty">
-          <div class="gs-empty-icon">✨</div>
-          <h3 class="gs-empty-title">Be the first to share your story</h3>
-          <p class="gs-empty-text">Travelled with Bridget? Tell other adventurers what made your trip across East Africa special.</p>
-          <button type="button" class="gs-btn" data-action="open">
-            <span>✍</span><span>Share your story</span>
-          </button>
+          <h3 class="gs-empty-title">No reviews yet</h3>
+          <p class="gs-empty-text">Travelled with Bridget? Be the first to share your experience.</p>
         </div>
       `;
-      body.querySelector('[data-action="open"]').addEventListener('click', openModal);
       return;
+    }
+
+    if (stats) {
+      const avg = list.reduce((s, t) => s + (Number(t.rating) || 0), 0) / list.length;
+      const avgRounded = Math.round(avg);
+      const avgStars = '★'.repeat(avgRounded) + '☆'.repeat(5 - avgRounded);
+      const word = list.length === 1 ? 'review' : 'reviews';
+      stats.innerHTML =
+        `<span class="gs-stats-stars">${avgStars}</span>` +
+        `<span class="gs-stats-num">${avg.toFixed(1)}</span>` +
+        `<span class="gs-stats-count">· ${list.length} ${word}</span>`;
+      stats.hidden = false;
     }
 
     body.dataset.state = 'filled';
