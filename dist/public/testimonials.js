@@ -446,6 +446,7 @@
   function ensurePromoBanner() {
     if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
     let banner = document.getElementById(PROMO_ID);
+    const newHTML = buildPromoMarkup();
     if (!banner) {
       const root = document.getElementById('root');
       if (!root) return;
@@ -454,9 +455,12 @@
       banner = document.createElement('div');
       banner.id = PROMO_ID;
       banner.className = 'gs-promo';
+      banner.innerHTML = newHTML;
       firstSection.parentNode.insertBefore(banner, firstSection.nextSibling);
+    } else if (banner.innerHTML !== newHTML) {
+      // only write if content actually changed — avoids feedback loop with MutationObserver
+      banner.innerHTML = newHTML;
     }
-    banner.innerHTML = buildPromoMarkup();
   }
 
   // --------------------------------------------------------------------------
@@ -508,9 +512,20 @@
     tryInsert();
 
     // React may re-render — keep section and banner in place across route changes.
+    // Important: only react when our elements are MISSING, otherwise we'd loop
+    // (DOM write -> observer fires -> DOM write -> ...). Also throttle to rAF.
+    let scheduled = false;
     const obs = new MutationObserver(() => {
-      ensurePromoBanner();
-      tryInsert();
+      if (scheduled) return;
+      const promoMissing = !document.getElementById(PROMO_ID);
+      const sectionMissing = !document.getElementById(SECTION_ID);
+      if (!promoMissing && !sectionMissing) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        if (!document.getElementById(PROMO_ID)) ensurePromoBanner();
+        if (!document.getElementById(SECTION_ID)) tryInsert();
+      });
     });
     obs.observe(document.body, { childList: true, subtree: true });
   }
