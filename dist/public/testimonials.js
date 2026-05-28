@@ -29,6 +29,13 @@
 
   const SECTION_ID = 'guest-stories';
   const STYLE_ID   = 'guest-stories-styles';
+  const PROMO_ID   = 'gs-promo-banner';
+  const REVIEWS_URL = 'reviews.html';
+
+  // mountConfig is overwritten in boot() depending on context:
+  //   - About me embed:  { limit: 3, seeAllUrl: 'reviews.html' }
+  //   - standalone /reviews.html: { limit: null, seeAllUrl: null }
+  let mountConfig = { limit: 3, seeAllUrl: REVIEWS_URL };
 
   // --------------------------------------------------------------------------
   // Styles — scoped via .gs- prefix, reuses Tailwind CSS vars from the main bundle
@@ -95,6 +102,15 @@
 .gs-msg{margin:1rem 0 0;padding:.85rem 1rem;border-radius:8px;font-size:.9rem;line-height:1.45}
 .gs-msg.gs-ok{background:hsl(150 40% 94%);color:hsl(150 45% 22%);border:1px solid hsl(150 40% 80%)}
 .gs-msg.gs-err{background:hsl(0 55% 95%);color:hsl(0 55% 30%);border:1px solid hsl(0 55% 85%)}
+.gs-seeall{text-align:center;margin-top:2.5rem}
+.gs-link{display:inline-block;color:hsl(var(--primary));text-decoration:none;font-weight:600;font-size:.95rem;padding:.4rem 0;border-bottom:2px solid currentColor;transition:color .15s}
+.gs-link:hover{color:hsl(25 90% 40%)}
+.gs-promo{background:hsl(var(--card));border-top:1px solid hsl(var(--border));border-bottom:1px solid hsl(var(--border));padding:.85rem 1rem;font-family:Montserrat,sans-serif}
+.gs-promo-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:.75rem 1rem;flex-wrap:wrap;font-size:.92rem;color:hsl(var(--foreground))}
+.gs-promo-text{display:inline-flex;align-items:center;gap:.5rem}
+.gs-promo-stars{color:hsl(var(--primary));letter-spacing:.1em}
+.gs-promo-link{color:hsl(var(--primary));font-weight:600;text-decoration:none}
+.gs-promo-link:hover{text-decoration:underline}
 `;
 
   // --------------------------------------------------------------------------
@@ -193,7 +209,8 @@
     }
 
     body.dataset.state = 'filled';
-    const cards = list.map(t => {
+    const visible = mountConfig.limit ? list.slice(0, mountConfig.limit) : list;
+    const cards = visible.map(t => {
       const rating = Math.max(0, Math.min(5, Number(t.rating) || 0));
       const stars = '★'.repeat(rating) + '☆'.repeat(5 - rating);
       const flagCountry = [t.flag, t.country].filter(Boolean).join(' ');
@@ -212,7 +229,10 @@
         </article>
       `;
     }).join('');
-    body.innerHTML = `<div class="gs-grid">${cards}</div>`;
+    const seeAll = (mountConfig.seeAllUrl && list.length > visible.length)
+      ? `<div class="gs-seeall"><a class="gs-link" href="${mountConfig.seeAllUrl}">See all ${list.length} reviews →</a></div>`
+      : '';
+    body.innerHTML = `<div class="gs-grid">${cards}</div>${seeAll}`;
   }
 
   function loadAndRender() {
@@ -238,8 +258,8 @@
     modalEl.innerHTML = `
       <div class="gs-modal" role="document">
         <button type="button" class="gs-close" aria-label="Close" data-action="close">×</button>
-        <h3>Share your trip story</h3>
-        <p class="gs-modal-sub">Tell other travellers what your journey with Bridget was like. After a quick review, your story will appear on the site.</p>
+        <h3>Submit a review</h3>
+        <p class="gs-modal-sub">Share your experience with Bridget so other travellers know what to expect. Your review will appear on the site shortly.</p>
         <form class="gs-form" novalidate>
           <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px">
 
@@ -290,7 +310,7 @@
           </div>
 
           <div class="gs-field">
-            <label for="gs-story">Your story</label>
+            <label for="gs-story">Your review</label>
             <textarea id="gs-story" name="text" required minlength="20" maxlength="800" placeholder="What moment will you remember most?"></textarea>
           </div>
 
@@ -299,7 +319,7 @@
             <span>I'm OK with Bridget publishing my first name, country and story on the site. Email stays private.</span>
           </label>
 
-          <button type="submit" class="gs-btn gs-submit">Send story</button>
+          <button type="submit" class="gs-btn gs-submit">Submit review</button>
           <div class="gs-msg" hidden></div>
         </form>
       </div>
@@ -378,26 +398,69 @@
     .then(res => {
       if (res && res.error) {
         showMsg(form, 'err', String(res.error));
-        submit.textContent = 'Send story';
+        submit.textContent = 'Submit review';
         submit.disabled = false;
         return;
       }
       form.reset();
       currentRating = 5;
-      showMsg(form, 'ok', 'Thank you! Your story is now live on the site.');
-      submit.textContent = 'Sent ✓';
+      showMsg(form, 'ok', 'Thank you! Your review is now live on the site.');
+      submit.textContent = 'Submitted ✓';
       loadAndRender();   // refresh the wall so the new card shows up
       setTimeout(closeModal, 1800);
     })
     .catch(() => {
       showMsg(form, 'err', "Sorry — couldn't send right now. Please try again in a minute.");
-      submit.textContent = 'Send story';
+      submit.textContent = 'Submit review';
       submit.disabled = false;
     });
   }
 
   // --------------------------------------------------------------------------
-  // Boot — wait for React to render the anchor, then insert (idempotent)
+  // Promo banner — "Read what travellers are saying about Bridget" link to /reviews.
+  // Injected at the top of the SPA's main view (after the hero <section>).
+  // --------------------------------------------------------------------------
+  let promoStats = { count: 0, avg: 0 };
+  function buildPromoMarkup() {
+    const c = promoStats.count;
+    const avg = promoStats.avg;
+    if (!c) {
+      return `
+        <div class="gs-promo-inner">
+          <span class="gs-promo-text">Read what travellers are saying about Bridget</span>
+          <a href="${REVIEWS_URL}" class="gs-promo-link">See reviews →</a>
+        </div>`;
+    }
+    const avgRounded = Math.round(avg);
+    const stars = '★'.repeat(avgRounded) + '☆'.repeat(5 - avgRounded);
+    const word = c === 1 ? 'review' : 'reviews';
+    return `
+      <div class="gs-promo-inner">
+        <span class="gs-promo-text">
+          <span class="gs-promo-stars">${stars}</span>
+          <span><strong>${avg.toFixed(1)}</strong> from ${c} ${word}</span>
+        </span>
+        <a href="${REVIEWS_URL}" class="gs-promo-link">Read what travellers are saying →</a>
+      </div>`;
+  }
+  function ensurePromoBanner() {
+    if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
+    let banner = document.getElementById(PROMO_ID);
+    if (!banner) {
+      const root = document.getElementById('root');
+      if (!root) return;
+      const firstSection = root.querySelector('section');
+      if (!firstSection || !firstSection.parentNode) return;
+      banner = document.createElement('div');
+      banner.id = PROMO_ID;
+      banner.className = 'gs-promo';
+      firstSection.parentNode.insertBefore(banner, firstSection.nextSibling);
+    }
+    banner.innerHTML = buildPromoMarkup();
+  }
+
+  // --------------------------------------------------------------------------
+  // Boot
   // --------------------------------------------------------------------------
   function tryInsert() {
     if (document.getElementById(SECTION_ID)) return true;
@@ -410,14 +473,46 @@
     return true;
   }
 
+  // Fetch stats once for the promo banner (independent of section being mounted)
+  function loadPromoStats() {
+    if (!APPS_SCRIPT_URL) return;
+    fetch(APPS_SCRIPT_URL, { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then(list => {
+        if (!Array.isArray(list) || list.length === 0) return;
+        const avg = list.reduce((s, t) => s + (Number(t.rating) || 0), 0) / list.length;
+        promoStats = { count: list.length, avg };
+        ensurePromoBanner();
+      })
+      .catch(() => {});
+  }
+
   function boot() {
-    if (tryInsert()) return;
+    // Standalone page mode: a host element exists, mount full list directly.
+    const explicitMount = document.getElementById('guest-stories-mount');
+    if (explicitMount) {
+      mountConfig = { limit: null, seeAllUrl: null };
+      injectStyles();
+      if (!document.getElementById(SECTION_ID)) {
+        const section = buildSection();
+        explicitMount.appendChild(section);
+        loadAndRender();
+      }
+      return;
+    }
+
+    // SPA mode: inject section on About me + promo banner everywhere else.
+    injectStyles();
+    ensurePromoBanner();
+    loadPromoStats();
+    tryInsert();
+
+    // React may re-render — keep section and banner in place across route changes.
     const obs = new MutationObserver(() => {
-      if (tryInsert()) obs.disconnect();
+      ensurePromoBanner();
+      tryInsert();
     });
     obs.observe(document.body, { childList: true, subtree: true });
-    // Safety net — stop observing after 30s no matter what
-    setTimeout(() => obs.disconnect(), 30000);
   }
 
   if (document.readyState === 'loading') {
