@@ -120,6 +120,22 @@
     { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]
   ));
 
+  // Walk the subtree, replace the first non-empty text node's content.
+  // Returns true if a text node was found and replaced.
+  function replaceFirstTextNode(node, newText) {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3 /* TEXT_NODE */) {
+        if ((child.textContent || '').trim()) {
+          child.textContent = newText;
+          return true;
+        }
+      } else if (child.nodeType === 1 /* ELEMENT_NODE */) {
+        if (replaceFirstTextNode(child, newText)) return true;
+      }
+    }
+    return false;
+  }
+
   function injectStyles() {
     if (document.getElementById(STYLE_ID)) return;
     const s = document.createElement('style');
@@ -509,11 +525,12 @@
         : reviewsItem.querySelector('a');
       if (innerAnchor) {
         innerAnchor.setAttribute('href', REVIEWS_URL);
-        // Replace text inside the anchor, preserving any icon spans if present
-        const textNode = Array.from(innerAnchor.childNodes)
-          .find(n => n.nodeType === Node.TEXT_NODE && (n.textContent || '').trim());
-        if (textNode) textNode.textContent = 'Reviews';
-        else innerAnchor.textContent = 'Reviews';
+        // Replace the FIRST non-empty text node anywhere in the subtree so we
+        // keep any wrapping spans intact (which carry the font-weight, color,
+        // letter-spacing etc. that the rest of the nav uses).
+        if (!replaceFirstTextNode(innerAnchor, 'Reviews')) {
+          innerAnchor.textContent = 'Reviews';
+        }
       }
       list.insertBefore(reviewsItem, contactItem);
     }
