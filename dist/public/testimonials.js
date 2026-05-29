@@ -464,17 +464,29 @@
   }
 
   // --------------------------------------------------------------------------
-  // Boot
+  // Inject "Reviews" link into every nav-list that already contains a "Contact"
+  // link (both desktop nav and mobile menu). Clones an existing link so the
+  // styling stays consistent with the rest of the navigation.
   // --------------------------------------------------------------------------
-  function tryInsert() {
-    if (document.getElementById(SECTION_ID)) return true;
-    const anchor = findAnchor();
-    if (!anchor || !anchor.parentNode) return false;
-    injectStyles();
-    const section = buildSection();
-    anchor.parentNode.insertBefore(section, anchor);
-    loadAndRender();
-    return true;
+  function ensureNavLinks() {
+    if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
+    const anchors = document.querySelectorAll('a');
+    const contactLinks = [];
+    for (const a of anchors) {
+      if (/^Contact$/i.test((a.textContent || '').trim())) contactLinks.push(a);
+    }
+    for (const contactLink of contactLinks) {
+      const parent = contactLink.parentNode;
+      if (!parent) continue;
+      // Already injected into this list?
+      if (parent.querySelector('a[data-gs-nav]')) continue;
+
+      const reviewsLink = contactLink.cloneNode(false); // keep classes/attrs
+      reviewsLink.setAttribute('href', REVIEWS_URL);
+      reviewsLink.setAttribute('data-gs-nav', '1');
+      reviewsLink.textContent = 'Reviews';
+      parent.insertBefore(reviewsLink, contactLink);
+    }
   }
 
   // Fetch stats once for the promo banner (independent of section being mounted)
@@ -505,26 +517,25 @@
       return;
     }
 
-    // SPA mode: inject section on About me + promo banner everywhere else.
+    // SPA mode: keep promo banner + "Reviews" nav link in place across route changes.
     injectStyles();
     ensurePromoBanner();
+    ensureNavLinks();
     loadPromoStats();
-    tryInsert();
 
-    // React may re-render — keep section and banner in place across route changes.
     // Important: only react when our elements are MISSING, otherwise we'd loop
     // (DOM write -> observer fires -> DOM write -> ...). Also throttle to rAF.
     let scheduled = false;
     const obs = new MutationObserver(() => {
       if (scheduled) return;
       const promoMissing = !document.getElementById(PROMO_ID);
-      const sectionMissing = !document.getElementById(SECTION_ID);
-      if (!promoMissing && !sectionMissing) return;
+      const navMissing   = !document.querySelector('a[data-gs-nav]');
+      if (!promoMissing && !navMissing) return;
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
         if (!document.getElementById(PROMO_ID)) ensurePromoBanner();
-        if (!document.getElementById(SECTION_ID)) tryInsert();
+        if (!document.querySelector('a[data-gs-nav]')) ensureNavLinks();
       });
     });
     obs.observe(document.body, { childList: true, subtree: true });
