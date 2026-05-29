@@ -443,9 +443,19 @@
         <a href="${REVIEWS_URL}" class="gs-promo-link">Read what travellers are saying →</a>
       </div>`;
   }
+  function shouldShowPromoHere() {
+    const path = (location.pathname || '/').replace(/\/+$/, '');
+    // Show only on Home and About me; hide on Contact, Support and any other page.
+    return path === '' || path === '/about';
+  }
+
   function ensurePromoBanner() {
     if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
     let banner = document.getElementById(PROMO_ID);
+    if (!shouldShowPromoHere()) {
+      if (banner) banner.remove();
+      return;
+    }
     const newHTML = buildPromoMarkup();
     if (!banner) {
       const root = document.getElementById('root');
@@ -471,21 +481,41 @@
   function ensureNavLinks() {
     if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
     const anchors = document.querySelectorAll('a');
-    const contactLinks = [];
+    const contactAnchors = [];
     for (const a of anchors) {
-      if (/^Contact$/i.test((a.textContent || '').trim())) contactLinks.push(a);
+      if (/^Contact$/i.test((a.textContent || '').trim())) contactAnchors.push(a);
     }
-    for (const contactLink of contactLinks) {
-      const parent = contactLink.parentNode;
-      if (!parent) continue;
-      // Already injected into this list?
-      if (parent.querySelector('a[data-gs-nav]')) continue;
+    for (const contactAnchor of contactAnchors) {
+      // Walk up until we find an ancestor whose siblings include other nav items
+      // (Home / About me). That ancestor is the "nav item" we should clone, not
+      // just the <a> tag (which may be wrapped in a <div> with its own padding).
+      let contactItem = contactAnchor;
+      while (contactItem.parentNode) {
+        const list = contactItem.parentNode;
+        const hasSiblingNav = Array.from(list.children).some(c =>
+          c !== contactItem && /^(Home|About me|Support female tour guides)/i.test((c.textContent || '').trim())
+        );
+        if (hasSiblingNav) break;
+        contactItem = list;
+      }
+      const list = contactItem.parentNode;
+      if (!list) continue;
+      if (list.querySelector('[data-gs-nav]')) continue;
 
-      const reviewsLink = contactLink.cloneNode(false); // keep classes/attrs
-      reviewsLink.setAttribute('href', REVIEWS_URL);
-      reviewsLink.setAttribute('data-gs-nav', '1');
-      reviewsLink.textContent = 'Reviews';
-      parent.insertBefore(reviewsLink, contactLink);
+      const reviewsItem = contactItem.cloneNode(true); // deep clone to keep wrapper + styles
+      reviewsItem.setAttribute('data-gs-nav', '1');
+      const innerAnchor = reviewsItem.tagName === 'A'
+        ? reviewsItem
+        : reviewsItem.querySelector('a');
+      if (innerAnchor) {
+        innerAnchor.setAttribute('href', REVIEWS_URL);
+        // Replace text inside the anchor, preserving any icon spans if present
+        const textNode = Array.from(innerAnchor.childNodes)
+          .find(n => n.nodeType === Node.TEXT_NODE && (n.textContent || '').trim());
+        if (textNode) textNode.textContent = 'Reviews';
+        else innerAnchor.textContent = 'Reviews';
+      }
+      list.insertBefore(reviewsItem, contactItem);
     }
   }
 
@@ -523,18 +553,21 @@
     ensureNavLinks();
     loadPromoStats();
 
-    // Important: only react when our elements are MISSING, otherwise we'd loop
+    // Important: only react when something needs fixing, otherwise we'd loop
     // (DOM write -> observer fires -> DOM write -> ...). Also throttle to rAF.
     let scheduled = false;
     const obs = new MutationObserver(() => {
       if (scheduled) return;
-      const promoMissing = !document.getElementById(PROMO_ID);
-      const navMissing   = !document.querySelector('a[data-gs-nav]');
-      if (!promoMissing && !navMissing) return;
+      const promoEl = document.getElementById(PROMO_ID);
+      const want = shouldShowPromoHere();
+      const promoNeedsAdd    = want && !promoEl;
+      const promoNeedsRemove = !want && !!promoEl;
+      const navMissing       = !document.querySelector('a[data-gs-nav]');
+      if (!promoNeedsAdd && !promoNeedsRemove && !navMissing) return;
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
-        if (!document.getElementById(PROMO_ID)) ensurePromoBanner();
+        ensurePromoBanner();
         if (!document.querySelector('a[data-gs-nav]')) ensureNavLinks();
       });
     });

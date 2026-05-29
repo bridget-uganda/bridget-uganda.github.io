@@ -32,6 +32,7 @@
       .rv-header {
         padding: 1.25rem 1.5rem;
         border-bottom: 1px solid hsl(40 15% 85%);
+        background: hsl(40 30% 97%);
       }
       .rv-header-inner {
         max-width: 1200px;
@@ -39,7 +40,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 1rem;
+        gap: 1.5rem;
         flex-wrap: wrap;
       }
       .rv-brand {
@@ -48,18 +49,32 @@
         font-weight: 500;
         color: hsl(25 20% 20%);
         text-decoration: none;
+        white-space: nowrap;
       }
       .rv-brand strong {
         color: hsl(25 90% 50%);
         font-weight: 500;
       }
-      .rv-back {
-        color: hsl(25 90% 50%);
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 0.9rem;
+      .rv-nav {
+        display: flex;
+        gap: 1.75rem;
+        align-items: center;
+        flex-wrap: wrap;
       }
-      .rv-back:hover { text-decoration: underline; }
+      .rv-nav a {
+        color: hsl(25 20% 20%);
+        text-decoration: none;
+        font-size: 0.95rem;
+        font-weight: 500;
+        transition: color 0.15s;
+        white-space: nowrap;
+      }
+      .rv-nav a:hover { color: hsl(25 90% 50%); }
+      .rv-nav a.active {
+        color: hsl(25 90% 50%);
+        border-bottom: 2px solid hsl(25 90% 50%);
+        padding-bottom: 4px;
+      }
       .rv-main { flex: 1; }
       .rv-footer {
         padding: 1.5rem 1rem 2rem;
@@ -69,6 +84,11 @@
         border-top: 1px solid hsl(40 15% 85%);
         margin-top: 2rem;
       }
+      @media (max-width: 640px) {
+        .rv-header-inner { gap: 0.75rem; }
+        .rv-nav { gap: 1rem; width: 100%; justify-content: center; }
+        .rv-nav a { font-size: 0.88rem; }
+      }
     </style>
     <script src="/testimonials.js" defer></script>
   </head>
@@ -76,7 +96,13 @@
     <header class="rv-header">
       <div class="rv-header-inner">
         <a href="/" class="rv-brand">Bridget <strong>Mulungi</strong></a>
-        <a href="/" class="rv-back">← Back to home</a>
+        <nav class="rv-nav" aria-label="Main">
+          <a href="/">Home</a>
+          <a href="/about">About me</a>
+          <a href="/reviews.html" class="active">Reviews</a>
+          <a href="/contact">Contact</a>
+          <a href="/support-female-guides">Support female tour guides</a>
+        </nav>
       </div>
     </header>
 
