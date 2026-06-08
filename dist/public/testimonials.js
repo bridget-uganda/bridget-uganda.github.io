@@ -30,7 +30,7 @@
   const SECTION_ID = 'guest-stories';
   const STYLE_ID   = 'guest-stories-styles';
   const PROMO_ID   = 'gs-promo-banner';
-  const REVIEWS_URL = 'reviews.html';
+  const REVIEWS_URL = '/reviews.html';
 
   // mountConfig is overwritten in boot() depending on context:
   //   - About me embed:  { limit: 3, seeAllUrl: 'reviews.html' }
