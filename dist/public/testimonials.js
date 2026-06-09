@@ -30,7 +30,14 @@
   const SECTION_ID = 'guest-stories';
   const STYLE_ID   = 'guest-stories-styles';
   const PROMO_ID   = 'gs-promo-banner';
+  const SLIDER_ID  = 'gs-home-slider';
   const REVIEWS_URL = '/reviews.html';
+  const HOME_SLIDER_IMAGES = [
+    '/assets/home-1.jpg',
+    '/assets/home-2.jpg',
+    '/assets/home-3.jpg',
+    '/assets/home-4.jpg'
+  ];
 
   // mountConfig is overwritten in boot() depending on context:
   //   - About me embed:  { limit: 3, seeAllUrl: 'reviews.html' }
@@ -111,6 +118,20 @@
 .gs-promo-stars{color:hsl(var(--primary));letter-spacing:.1em}
 .gs-promo-link{color:hsl(var(--primary));font-weight:600;text-decoration:none}
 .gs-promo-link:hover{text-decoration:underline}
+.gs-home-slider{max-width:1200px;margin:2rem auto 4rem;padding:0 1rem;font-family:Montserrat,sans-serif}
+.gs-home-slider h3{font-family:"Playfair Display",serif;text-align:center;margin:0 0 1.5rem;font-size:clamp(1.4rem,3vw,2rem);font-weight:500;color:hsl(var(--foreground))}
+.gs-slider{position:relative;aspect-ratio:16/10;overflow:hidden;border-radius:18px;background:hsl(40 10% 85%);box-shadow:0 20px 40px -16px rgba(0,0,0,.25)}
+.gs-slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity .8s ease-in-out}
+.gs-slide.gs-active{opacity:1}
+.gs-arrow{position:absolute;top:50%;transform:translateY(-50%);width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.85);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.4rem;color:hsl(25 20% 20%);transition:background .2s,transform .2s;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:2}
+.gs-arrow:hover{background:#fff;transform:translateY(-50%) scale(1.08)}
+.gs-arrow.gs-prev{left:1rem}
+.gs-arrow.gs-next{right:1rem}
+.gs-dots{display:flex;justify-content:center;gap:.5rem;margin-top:1rem}
+.gs-dot{width:10px;height:10px;border-radius:50%;background:hsl(40 15% 75%);border:none;cursor:pointer;padding:0;transition:background .2s,transform .2s}
+.gs-dot:hover{transform:scale(1.25)}
+.gs-dot.gs-active{background:hsl(var(--primary));transform:scale(1.2)}
+@media (max-width:640px){.gs-slider{aspect-ratio:4/3}.gs-arrow{width:36px;height:36px;font-size:1.2rem}}
 `;
 
   // --------------------------------------------------------------------------
@@ -465,6 +486,113 @@
     return path === '' || path === '/about';
   }
 
+  // --------------------------------------------------------------------------
+  // Home-only auto-rotating photo slider, inserted after the
+  // "Top things to see in East Africa" section. Also nudges the 3 cards
+  // grid above to be a touch wider so the photos read better.
+  // --------------------------------------------------------------------------
+  function findHighlightsSection() {
+    const headings = document.querySelectorAll('h1, h2, h3');
+    for (const h of headings) {
+      if (/Top things to see/i.test((h.textContent || '').trim())) {
+        let el = h;
+        while (el && el.tagName !== 'SECTION' && el.parentElement) el = el.parentElement;
+        if (el && el.tagName === 'SECTION') return el;
+      }
+    }
+    return null;
+  }
+
+  function isHomePath() {
+    const p = (location.pathname || '/').replace(/\/+$/, '');
+    return p === '' || p === '/';
+  }
+
+  function enlargeHighlightCards(section) {
+    if (!section || section.dataset.gsEnlarged === '1') return;
+    // BFS for an element using CSS grid with at least 3 children — that's the
+    // cards row. Then widen its max-width and bump the gap a little.
+    const queue = [section];
+    while (queue.length) {
+      const el = queue.shift();
+      if (el !== section && el.children.length >= 3) {
+        const cs = getComputedStyle(el);
+        if (cs.display === 'grid') {
+          el.style.maxWidth = '1400px';
+          el.style.gap = '2.25rem';
+          el.style.marginLeft = 'auto';
+          el.style.marginRight = 'auto';
+          section.dataset.gsEnlarged = '1';
+          return;
+        }
+      }
+      for (const c of el.children) queue.push(c);
+    }
+  }
+
+  let sliderTimer = null;
+  function ensureHomeSlider() {
+    if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
+    const existing = document.getElementById(SLIDER_ID);
+    if (!isHomePath()) {
+      if (existing) { existing.remove(); if (sliderTimer) { clearInterval(sliderTimer); sliderTimer = null; } }
+      return;
+    }
+    if (existing) return;
+
+    const section = findHighlightsSection();
+    if (!section || !section.parentNode) return;
+
+    // Widen the 3-card grid above
+    enlargeHighlightCards(section);
+
+    const wrap = document.createElement('div');
+    wrap.id = SLIDER_ID;
+    wrap.className = 'gs-home-slider';
+    const slidesHTML = HOME_SLIDER_IMAGES.map((src, i) =>
+      `<div class="gs-slide${i === 0 ? ' gs-active' : ''}" style="background-image:url('${src}')" role="img" aria-label="Trip photo ${i + 1}"></div>`
+    ).join('');
+    const dotsHTML = HOME_SLIDER_IMAGES.map((_, i) =>
+      `<button type="button" class="gs-dot${i === 0 ? ' gs-active' : ''}" data-i="${i}" aria-label="Show photo ${i + 1}"></button>`
+    ).join('');
+    wrap.innerHTML = `
+      <h3>Moments from recent trips</h3>
+      <div class="gs-slider">
+        ${slidesHTML}
+        <button type="button" class="gs-arrow gs-prev" aria-label="Previous photo">‹</button>
+        <button type="button" class="gs-arrow gs-next" aria-label="Next photo">›</button>
+      </div>
+      <div class="gs-dots">${dotsHTML}</div>
+    `;
+    section.parentNode.insertBefore(wrap, section.nextSibling);
+
+    const slides = wrap.querySelectorAll('.gs-slide');
+    const dots   = wrap.querySelectorAll('.gs-dot');
+    const slider = wrap.querySelector('.gs-slider');
+    const TOTAL  = slides.length;
+    let idx = 0;
+
+    function show(i) {
+      idx = (i + TOTAL) % TOTAL;
+      slides.forEach((s, k) => s.classList.toggle('gs-active', k === idx));
+      dots.forEach((d, k) => d.classList.toggle('gs-active', k === idx));
+    }
+    function start() {
+      if (sliderTimer) clearInterval(sliderTimer);
+      sliderTimer = setInterval(() => show(idx + 1), 5000);
+    }
+    function stop() {
+      if (sliderTimer) { clearInterval(sliderTimer); sliderTimer = null; }
+    }
+
+    dots.forEach((d, k) => d.addEventListener('click', () => { show(k); start(); }));
+    wrap.querySelector('.gs-prev').addEventListener('click', () => { show(idx - 1); start(); });
+    wrap.querySelector('.gs-next').addEventListener('click', () => { show(idx + 1); start(); });
+    slider.addEventListener('mouseenter', stop);
+    slider.addEventListener('mouseleave', start);
+    start();
+  }
+
   function ensurePromoBanner() {
     if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
     let banner = document.getElementById(PROMO_ID);
@@ -568,6 +696,7 @@
     injectStyles();
     ensurePromoBanner();
     ensureNavLinks();
+    ensureHomeSlider();
     loadPromoStats();
 
     // Important: only react when something needs fixing, otherwise we'd loop
@@ -575,17 +704,22 @@
     let scheduled = false;
     const obs = new MutationObserver(() => {
       if (scheduled) return;
-      const promoEl = document.getElementById(PROMO_ID);
-      const want = shouldShowPromoHere();
-      const promoNeedsAdd    = want && !promoEl;
-      const promoNeedsRemove = !want && !!promoEl;
-      const navMissing       = !document.querySelector('a[data-gs-nav]');
-      if (!promoNeedsAdd && !promoNeedsRemove && !navMissing) return;
+      const promoEl   = document.getElementById(PROMO_ID);
+      const sliderEl  = document.getElementById(SLIDER_ID);
+      const want      = shouldShowPromoHere();
+      const wantSlider = isHomePath();
+      const promoNeedsAdd      = want && !promoEl;
+      const promoNeedsRemove   = !want && !!promoEl;
+      const navMissing         = !document.querySelector('a[data-gs-nav]');
+      const sliderNeedsAdd     = wantSlider && !sliderEl;
+      const sliderNeedsRemove  = !wantSlider && !!sliderEl;
+      if (!promoNeedsAdd && !promoNeedsRemove && !navMissing && !sliderNeedsAdd && !sliderNeedsRemove) return;
       scheduled = true;
       requestAnimationFrame(() => {
         scheduled = false;
         ensurePromoBanner();
         if (!document.querySelector('a[data-gs-nav]')) ensureNavLinks();
+        ensureHomeSlider();
       });
     });
     obs.observe(document.body, { childList: true, subtree: true });
