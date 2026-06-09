@@ -118,6 +118,11 @@
 .gs-promo-link{color:hsl(var(--primary));font-weight:600;text-decoration:none}
 .gs-promo-link:hover{text-decoration:underline}
 img[data-gs-rotator]{transition:opacity .6s ease-in-out}
+.gs-rot-arrow{position:absolute;top:50%;transform:translateY(-50%);width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.4);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:500;color:hsl(25 20% 18%);line-height:1;padding:0 0 3px 0;transition:background .2s,transform .2s;z-index:3;box-shadow:0 2px 6px rgba(0,0,0,.15)}
+.gs-rot-arrow:hover{background:rgba(255,255,255,.85);transform:translateY(-50%) scale(1.08)}
+.gs-rot-arrow.gs-rot-prev{left:10px}
+.gs-rot-arrow.gs-rot-next{right:10px}
+@media (max-width:640px){.gs-rot-arrow{width:34px;height:34px;font-size:1.2rem}}
 `;
 
   // --------------------------------------------------------------------------
@@ -502,7 +507,7 @@ img[data-gs-rotator]{transition:opacity .6s ease-in-out}
       if (el !== section && el.children.length >= 3) {
         const cs = getComputedStyle(el);
         if (cs.display === 'grid') {
-          el.style.maxWidth = '1400px';
+          el.style.maxWidth = '1500px';
           el.style.gap = '2.25rem';
           el.style.marginLeft = 'auto';
           el.style.marginRight = 'auto';
@@ -535,6 +540,64 @@ img[data-gs-rotator]{transition:opacity .6s ease-in-out}
 
   let rwandaTimer = null;
   let rwandaIdx = 0;
+
+  function showRotatorImage(img, i) {
+    rwandaIdx = (i + HOME_SLIDER_IMAGES.length) % HOME_SLIDER_IMAGES.length;
+    img.style.opacity = '0';
+    setTimeout(() => {
+      img.src = HOME_SLIDER_IMAGES[rwandaIdx];
+      img.style.opacity = '1';
+    }, 250);
+  }
+  function startRotatorTimer(img) {
+    if (rwandaTimer) clearInterval(rwandaTimer);
+    rwandaTimer = setInterval(() => {
+      if (!document.body.contains(img)) {
+        clearInterval(rwandaTimer);
+        rwandaTimer = null;
+        return;
+      }
+      showRotatorImage(img, rwandaIdx + 1);
+    }, 5000);
+  }
+  function attachRotatorArrows(img) {
+    const parent = img.parentElement;
+    if (!parent) return;
+    if (parent.querySelector('button[data-gs-arrow]')) return; // already attached
+
+    // Make sure absolute-positioned arrows anchor to the image's box
+    const pos = getComputedStyle(parent).position;
+    if (pos === 'static') parent.style.position = 'relative';
+
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'gs-rot-arrow gs-rot-prev';
+    prev.setAttribute('data-gs-arrow', 'prev');
+    prev.setAttribute('aria-label', 'Previous photo');
+    prev.textContent = '‹';
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'gs-rot-arrow gs-rot-next';
+    next.setAttribute('data-gs-arrow', 'next');
+    next.setAttribute('aria-label', 'Next photo');
+    next.textContent = '›';
+
+    prev.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      showRotatorImage(img, rwandaIdx - 1);
+      startRotatorTimer(img);
+    });
+    next.addEventListener('click', (e) => {
+      e.preventDefault(); e.stopPropagation();
+      showRotatorImage(img, rwandaIdx + 1);
+      startRotatorTimer(img);
+    });
+
+    parent.appendChild(prev);
+    parent.appendChild(next);
+  }
+
   function ensureRwandaRotator() {
     if (document.getElementById('guest-stories-mount')) return; // skip on /reviews
     if (!isHomePath()) {
@@ -547,28 +610,20 @@ img[data-gs-rotator]{transition:opacity .6s ease-in-out}
     const section = findHighlightsSection();
     if (section) enlargeHighlightCards(section);
 
+    const arrowsPresent = !!img.parentElement &&
+      !!img.parentElement.querySelector('button[data-gs-arrow]');
+
     // Already wired up to this exact <img>?
-    if (img.dataset.gsRotator === '1' && rwandaTimer) return;
+    if (img.dataset.gsRotator === '1' && rwandaTimer && arrowsPresent) return;
+
     img.dataset.gsRotator = '1';
-    img.src = HOME_SLIDER_IMAGES[rwandaIdx % HOME_SLIDER_IMAGES.length];
+    if (!img.src.includes('/assets/home-')) {
+      img.src = HOME_SLIDER_IMAGES[rwandaIdx % HOME_SLIDER_IMAGES.length];
+    }
     img.style.objectFit = img.style.objectFit || 'cover';
 
-    if (rwandaTimer) clearInterval(rwandaTimer);
-    rwandaTimer = setInterval(() => {
-      // Stop if React tore the element out of the DOM
-      if (!document.body.contains(img)) {
-        clearInterval(rwandaTimer);
-        rwandaTimer = null;
-        return;
-      }
-      rwandaIdx = (rwandaIdx + 1) % HOME_SLIDER_IMAGES.length;
-      // Cross-fade by briefly lowering opacity
-      img.style.opacity = '0';
-      setTimeout(() => {
-        img.src = HOME_SLIDER_IMAGES[rwandaIdx];
-        img.style.opacity = '1';
-      }, 250);
-    }, 5000);
+    attachRotatorArrows(img);
+    startRotatorTimer(img);
   }
 
   function ensurePromoBanner() {
@@ -689,9 +744,13 @@ img[data-gs-rotator]{transition:opacity .6s ease-in-out}
       const promoNeedsRemove = !want && !!promoEl;
       const navMissing       = !document.querySelector('a[data-gs-nav]');
       // Rotator: we need to (re)wire if we're on Home and the Rwanda <img>
-      // either doesn't carry our marker or our timer is dead.
-      const rotatorNeedsWiring = wantHome &&
-        (!document.querySelector('img[data-gs-rotator="1"]') || !rwandaTimer);
+      // either doesn't carry our marker, the timer is dead, or our nav arrows
+      // were stripped by a React re-render.
+      const rotatorNeedsWiring = wantHome && (
+        !document.querySelector('img[data-gs-rotator="1"]') ||
+        !rwandaTimer ||
+        !document.querySelector('button[data-gs-arrow]')
+      );
       const rotatorNeedsStopping = !wantHome && !!rwandaTimer;
       if (!promoNeedsAdd && !promoNeedsRemove && !navMissing &&
           !rotatorNeedsWiring && !rotatorNeedsStopping) return;
